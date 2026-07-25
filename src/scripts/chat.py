@@ -16,6 +16,10 @@ qui non c'e'.
 """
 
 import argparse
+import re
+import shutil
+import sys
+import textwrap
 from typing import Iterator
 
 from ..clients.ollama import oclient
@@ -77,6 +81,22 @@ def format_hit(n: int, hit: Hit) -> str:
     return f"[{n}] {source_label(hit)}\n{hit.text}"
 
 
+# Nel prompt la sezione va per intero: la catena dei titoli e' contesto utile
+# al modello. A schermo no - "CCNL > CONTRATTI FLESSIBILI > Art.76 ... >
+# Art.87 ..." occupa tre righe e l'unico anello che descrive il chunk e'
+# l'ultimo. Il markup (`<u>`, `**`) arriva dai titoli Markdown del corpus.
+MARKUP_RE = re.compile(r"</?[a-z]+>|\*+")
+SECTION_WIDTH = 62
+
+
+def short_section(section: str) -> str:
+    """L'ultimo anello del percorso dei titoli, ripulito e accorciato."""
+    last = MARKUP_RE.sub("", section).split(">")[-1].strip()
+    if not last:
+        return "—"
+    return last if len(last) <= SECTION_WIDTH else last[:SECTION_WIDTH - 1] + "…"
+
+
 def build_context(hits: list[Hit]) -> str:
     return "\n\n".join(format_hit(n, h) for n, h in enumerate(hits, start=1))
 
@@ -94,10 +114,10 @@ def build_messages(question: str, hits: list[Hit]) -> list[dict]:
 # --------------------------------------------------------------------------
 
 def generate(question: str, hits: list[Hit]) -> Iterator[str]:
-    """La risposta a pezzi, cosi' il primo token si vede subito.
+    """La risposta a pezzi, come arriva dal modello.
 
     `temperature` a 0: qui non si scrive, si riporta. Ogni grado di
-    creativita' e' un grado di distanza dal testo del contratto.
+    creativita' e' un grado di distanza dal testo dei documenti.
     """
 
     stream = oclient.chat(
@@ -133,13 +153,19 @@ def confidence_band(normalized: float) -> str:
     return "low"
 
 
+def format_source(n: int, hit: Hit, strategy: str) -> str:
+    """Due righe per fonte: prima quanto vale e cosa dice, poi da dove viene."""
+    normalized = normalize_score(hit.score, strategy)
+    return (f"  [{n}] {normalized:>4.0%} {confidence_band(normalized):<6} "
+            f"{short_section(hit.section)}\n"
+            f"{'':18}{hit.document} · pag. {hit.page or '—'}")
+
+
 def print_sources(hits: list[Hit], strategy: str) -> None:
     """Le fonti in fondo: senza, [1] e' un numero che nessuno puo' verificare."""
-    print("\n\nFonti:")
+    print("\nFonti")
     for n, hit in enumerate(hits, start=1):
-        normalized = normalize_score(hit.score, strategy)
-        band = confidence_band(normalized)
-        print(f"  [{n}] {source_label(hit)}   {normalized:.0%} ({band})")
+        print(format_source(n, hit, strategy))
 
 
 # Il benchmark e' lo stesso recall_at_k di retrieval.py: qui serve solo da
@@ -154,27 +180,88 @@ _BENCHMARK_CACHE: dict[tuple[str, str], dict] = {}
 def strategy_benchmark(strategy: str, search_fn: SearchFn, collection: str) -> dict:
     key = (strategy, collection)
     if key not in _BENCHMARK_CACHE:
-        print("\n(prima misurazione della strategia sul golden set, "
-              "puo' volerci qualche minuto con il reranker...)")
         _BENCHMARK_CACHE[key] = recall_at_k(search_fn, collection)
     return _BENCHMARK_CACHE[key]
 
 
+def warm_benchmark(strategy: str, search_fn: SearchFn, collection: str) -> None:
+    """Misura prima del primo turno: l'attesa va all'avvio, non in mezzo a
+    una risposta gia' cominciata."""
+    print("Misuro la strategia sul golden set (una volta sola)...",
+          end="", flush=True)
+    strategy_benchmark(strategy, search_fn, collection)
+    print(" fatto.")
+
+
 def print_benchmark(strategy: str, search_fn: SearchFn, collection: str) -> None:
     benchmark = strategy_benchmark(strategy, search_fn, collection)
-    print(f"Benchmark strategia (golden set): recall@5 {benchmark['recall']:.0%} "
-          f"· risposte complete {benchmark['complete']:.0%}")
+    print(f"\n  Golden set, questa strategia: {benchmark['recall']:.0%} chunk "
+          f"attesi · {benchmark['complete']:.0%} domande complete")
+
+
+WAIT_MESSAGE = "Genero la risposta..."
+
+
+def collect_answer(question: str, hits: list[Hit]) -> str:
+    """Raccoglie la risposta intera, poi cancella l'attesa dalla riga.
+
+    Lo streaming a schermo dava il primo token subito, ma stampava anche gli
+    a-capo del modello cosi' com'erano: per rientrare e mandare a capo il
+    testo bisogna averlo tutto. Il messaggio di attesa tiene il posto del
+    feedback immediato.
+    """
+
+    # Solo su un terminale vero: rediretto su file, il `\r` non cancella
+    # niente e l'attesa resterebbe incollata alla prima riga di risposta.
+    interactive = sys.stdout.isatty()
+    if interactive:
+        print(WAIT_MESSAGE, end="", flush=True)
+    text = "".join(generate(question, hits))
+    if interactive:
+        print("\r" + " " * len(WAIT_MESSAGE) + "\r", end="")
+    return text
+
+
+def answer_width() -> int:
+    """La larghezza del terminale, ma senza righe illeggibilmente lunghe."""
+    return min(shutil.get_terminal_size().columns - 4, 76)
+
+
+def wrap_answer(text: str) -> str:
+    """Rientro costante, a-capo sulla larghezza, righe vuote ripetute a una.
+
+    Si manda a capo riga per riga invece di riempire i paragrafi: se il
+    modello produce un elenco o una tabella, unire le righe la distruggerebbe.
+    """
+
+    width, out, blank = answer_width(), [], False
+    for line in text.splitlines():
+        if not line.strip():
+            blank = bool(out)
+            continue
+        if blank:
+            out.append("")
+        blank = False
+        out.extend(textwrap.wrap(line.strip(), width=width,
+                                 initial_indent="  ", subsequent_indent="  "))
+    return "\n".join(out)
+
+
+def print_answer(question: str, hits: list[Hit]) -> None:
+    """La risposta, formattata solo dopo essere arrivata per intero."""
+    body = wrap_answer(collect_answer(question, hits))
+    print(body or "  (il modello non ha prodotto testo)")
 
 
 def answer(question: str, search_fn: SearchFn, collection: str, strategy: str) -> None:
     """Un turno intero: recupera, genera, dice da dove viene la risposta."""
     hits = search_fn(question, collection, TOP_K)
     if not hits:
-        print("Nessun passaggio recuperato.\n")
+        print("\nNessun passaggio recuperato.\n")
         return
 
-    for piece in generate(question, hits):
-        print(piece, end="", flush=True)
+    print("\nRisposta")
+    print_answer(question, hits)
     print_sources(hits, strategy)
     print_benchmark(strategy, search_fn, collection)
     print()
@@ -235,12 +322,13 @@ def chat_main() -> None:
     search_fn = STRATEGIES[STRATEGY_ALIASES[args.strategy]]
     print(f"Collection: {args.collection} | strategia: {args.strategy} | "
           f"modello: {CHAT_MODEL}")
+    warm_benchmark(args.strategy, search_fn, args.collection)
 
     if args.question:
         answer(args.question, search_fn, args.collection, args.strategy)
         return
 
-    print("Scrivi la domanda. 'esci' per uscire.\n")
+    print("\nScrivi la domanda. 'esci' per uscire.\n")
     chat_loop(search_fn, args.collection, args.strategy)
 
 
