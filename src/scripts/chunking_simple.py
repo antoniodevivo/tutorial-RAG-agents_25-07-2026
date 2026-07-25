@@ -5,6 +5,8 @@ import json
 import re
 from datetime import date
 from pathlib import Path
+from typing import List
+from ..models.validators.chunks import Chunk
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 PDF_DIR = BASE_DIR / "docs" / "pdf"
@@ -38,7 +40,7 @@ def words_with_pages(text):
             yield word, page
 
 
-def fixed_size_chunking(text, metadata=None):
+def fixed_size_chunking(text, metadata=None) -> List[Chunk]:
     chunks = []
     current_chunk = []
     current_tokens = 0
@@ -82,7 +84,7 @@ def fixed_size_chunking(text, metadata=None):
     return chunks
 
 
-def cut_from_structure(text, metadata=None):
+def cut_from_structure(text, metadata=None) -> List[Chunk]:
     # Split the text into lines
     lines = text.splitlines()
     chunks = []
@@ -162,6 +164,10 @@ def generate_chunks(md_path) -> None:
     for name, strategy in CHUNKING_STRATEGIES.items():
         out_path = CHUNK_DIR / f"md_{md_name}_chunks-{name}.jsonl"
         total = 0
+
+        # first delete the file if it already exists to avoid appending to old data
+        if out_path.exists():
+            out_path.unlink()
 
         text = md_path.read_text(encoding="utf-8")
         with out_path.open("w", encoding="utf-8") as f:
