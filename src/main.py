@@ -12,6 +12,7 @@ dal pacchetto e Python solleva `attempted relative import beyond top-level`.
 import argparse
 from src.scripts.chunking_simple import generate_chunks_for_all_md
 from src.scripts.pdf2md import convert_all_pdfs
+from src.scripts.qdrant.ingestion import ingest_all_chunks
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +27,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Applica le due strategie di chunking e scrive i JSONL in docs/chunks.",
     )
+    parser.add_argument(
+        "--ingest",
+        action="store_true",
+        help="Ingestisce i chunk in Qdrant.",
+    )
     return parser.parse_args()
 
 
@@ -37,6 +43,9 @@ def main() -> None:
 
     if args.gchunks:
         generate_chunks_for_all_md()
+
+    if args.ingest:
+        ingest_all_chunks()
 
 
 if __name__ == "__main__":

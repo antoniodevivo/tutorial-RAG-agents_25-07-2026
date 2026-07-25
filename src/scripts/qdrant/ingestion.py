@@ -4,6 +4,9 @@ from ...clients.qdrant import qclient
 
 from ...models.validators.chunks import ChunkWithEmbedding
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+CHUNK_DIR = BASE_DIR / "docs" / "chunks"
+
 COLLECTIONS = [
     {
         "name": "fixed_size_chunking",
@@ -43,3 +46,8 @@ def upsert_vector_with_payload(chunking_file_path: Path) -> None:
                     )
                 ],
             )
+
+
+def ingest_all_chunks() -> None:
+    for jsonl_file in CHUNK_DIR.glob("*.jsonl"):
+        upsert_vector_with_payload(jsonl_file)
