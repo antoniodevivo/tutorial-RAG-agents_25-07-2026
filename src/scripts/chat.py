@@ -43,20 +43,22 @@ STRATEGY_ALIASES = {
     "reranker": "hybrid + reranker",
 }
 
-# Le quattro regole sono quattro trappole del golden set, in ordine: la
-# risposta assente (blocco X), la citazione verificabile, i due contratti
-# gemelli con valori diversi, il conteggio che il RAG non puo' fare (blocco A).
-SYSTEM_PROMPT = """Rispondi a domande sui contratti collettivi usando SOLO i passaggi forniti.
+# Il prompt e' generico apposta: il vector store non contiene solo i due CCNL,
+# ma centinaia di documenti eterogenei (atti, report, moduli, paper...) senza
+# relazione tra loro. Le regole devono reggere per qualunque corpus ci finisca
+# dentro, non solo per le trappole del golden set su cui sono state pensate.
+SYSTEM_PROMPT = """Answer the question using ONLY the passages below.
 
-- Se i passaggi non contengono la risposta, scrivi "Non è nei documenti." e fermati. Non dedurre, non calcolare, non completare con quello che sai già.
-- Cita il passaggio dopo ogni affermazione, con il suo numero tra parentesi quadre: [1], [3].
-- I due contratti (metalmeccanico e commercio) regolano gli stessi istituti con valori diversi. Se la domanda non dice quale, rispondi per entrambi: non sceglierne uno in silenzio.
-- Non contare e non fare totali: ricevi i primi passaggi trovati, non il corpus."""
+- If the passages don't contain the answer, say so clearly and stop — don't infer, calculate, or fill gaps with outside knowledge.
+- Cite the passage after every claim, with its number in square brackets: [1], [3].
+- If two or more passages cover the same topic but disagree or come from different sources, keep them distinct — don't silently pick one and drop the rest.
+- Don't count or total anything across the corpus: you're given a handful of retrieved passages, not the whole corpus.
+- Answer in the same language as the question."""
 
-USER_PROMPT = """PASSAGGI:
+USER_PROMPT = """PASSAGES:
 {context}
 
-DOMANDA: {question}"""
+QUESTION: {question}"""
 
 
 # --------------------------------------------------------------------------

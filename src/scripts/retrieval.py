@@ -242,15 +242,15 @@ def hybrid_search(query: str, collection: str, limit: int = TOP_K) -> list[Hit]:
 # 3. hybrid + reranker cross-encoder
 # --------------------------------------------------------------------------
 
-SCORE_PROMPT = """Valuta quanto il DOCUMENTO risponde alla DOMANDA.
-Rispondi SOLO con un numero intero da 0 a 10, senza altro testo.
+SCORE_PROMPT = """Rate how well the DOCUMENT answers the QUESTION.
+Reply with ONLY an integer from 0 to 10, nothing else.
 
-DOMANDA: {query}
+QUESTION: {query}
 
-DOCUMENTO:
+DOCUMENT:
 {document}
 
-Punteggio (0-10):"""
+Score (0-10):"""
 
 
 def score_pair(query: str, document: str) -> float:
