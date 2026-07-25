@@ -1,0 +1,7 @@
+uv init
+
+# export uv to requirements.txt
+uv export --format requirements-txt > requirements.txt
+
+# create e virtual env
+uv venv
