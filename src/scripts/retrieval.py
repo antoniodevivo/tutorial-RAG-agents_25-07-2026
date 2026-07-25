@@ -5,8 +5,8 @@
 Le tre strategie sono cumulative, ognuna aggiunge un pezzo alla precedente:
 
     1. semantica          embedding della query -> vicini nel vettoriale
-    2. ibrida             semantica + BM25, fusi con RRF
-    3. ibrida + reranker   le prime N candidate riordinate da un cross-encoder
+    2. hybrid             semantica + BM25, fusi con RRF
+    3. hybrid + reranker   le prime N candidate riordinate da un cross-encoder
 
 Il punteggio e' recall@5 sul golden set in eval/golden_set.jsonl: un chunk
 conta come recuperato se il suo testo contiene l'ancora attesa e viene dal
@@ -239,7 +239,7 @@ def hybrid_search(query: str, collection: str, limit: int = TOP_K) -> list[Hit]:
 
 
 # --------------------------------------------------------------------------
-# 3. Ibrida + reranker cross-encoder
+# 3. hybrid + reranker cross-encoder
 # --------------------------------------------------------------------------
 
 SCORE_PROMPT = """Valuta quanto il DOCUMENTO risponde alla DOMANDA.
@@ -284,10 +284,10 @@ def cross_encoder_rerank(query: str, candidates: list[Hit],
 
 def hybrid_rerank_search(query: str, collection: str,
                          limit: int = TOP_K) -> list[Hit]:
-    """Ibrida per il richiamo, cross-encoder per la precisione.
+    """hybrid per il richiamo, cross-encoder per la precisione.
 
     Il reranker non puo' recuperare cio' che il retrieval non ha portato: il
-    suo tetto e' il recall@CANDIDATES della ricerca ibrida. Se la strategia 3
+    suo tetto e' il recall@CANDIDATES della ricerca hybrid. Se la strategia 3
     non migliora sulla 2, il collo di bottiglia e' a monte e alzare la qualita'
     del reranker non serve a niente.
     """
@@ -363,9 +363,9 @@ def recall_at_k(search_fn: SearchFn, collection: str, k: int = TOP_K) -> dict:
 
 
 STRATEGIES: dict[str, SearchFn] = {
-    "semantica": semantic_search,
-    "ibrida (RRF)": hybrid_search,
-    "ibrida + reranker": hybrid_rerank_search,
+    "semantic": semantic_search,
+    "hybrid (RRF)": hybrid_search,
+    "hybrid + reranker": hybrid_rerank_search,
 }
 
 

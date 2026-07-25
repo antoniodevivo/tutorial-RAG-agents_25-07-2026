@@ -9,10 +9,10 @@ richiamo, il secondo la precisione.
 La tentazione è ovvia: BM25 dà un numero, il coseno dà un numero, si sommano.
 Non funziona, per un motivo che si vede subito guardando le scale:
 
-| | intervallo tipico | dipende da |
-| --- | --- | --- |
-| similarità coseno | 0 → 1 | il modello di embedding |
-| BM25 | 0 → ~40 | quanti termini ha la query, quanto sono rari, la taglia del corpus |
+|                   | intervallo tipico | dipende da                                                         |
+| ----------------- | ----------------- | ------------------------------------------------------------------ |
+| similarità coseno | 0 → 1             | il modello di embedding                                            |
+| BM25              | 0 → ~40           | quanti termini ha la query, quanto sono rari, la taglia del corpus |
 
 BM25 non ha un massimo: una query di dieci termini rari produce punteggi molto
 più alti di una query di due termini comuni, **sullo stesso corpus**. Sommare
@@ -20,7 +20,7 @@ significherebbe che l'una domina in un caso e l'altra nell'altro, in modo
 imprevedibile da query a query.
 
 Normalizzare (min-max, z-score) sposta il problema senza risolverlo: la
-normalizzazione va fatta sui risultati di *quella* query, quindi un punteggio
+normalizzazione va fatta sui risultati di _quella_ query, quindi un punteggio
 di 0.9 non vuol dire la stessa cosa in due domande diverse.
 
 **RRF elimina il problema alla radice: butta via i punteggi e tiene solo le
@@ -46,20 +46,20 @@ for ranking in rankings:
 Quattro chunk, due classifiche:
 
 | chunk | posizione nel denso | posizione nello sparso |
-| --- | --- | --- |
-| A | 1ª | 3ª |
-| B | — | 1ª |
-| C | 2ª | 2ª |
-| D | 3ª | — |
+| ----- | ------------------- | ---------------------- |
+| A     | 1ª                  | 3ª                     |
+| B     | —                   | 1ª                     |
+| C     | 2ª                  | 2ª                     |
+| D     | 3ª                  | —                      |
 
 Con `K = 60`:
 
-| chunk | calcolo | RRF |
-| --- | --- | --- |
+| chunk | calcolo     | RRF         |
+| ----- | ----------- | ----------- |
 | **A** | 1/61 + 1/63 | **0.03227** |
 | **C** | 1/62 + 1/62 | **0.03226** |
-| B | 1/61 | 0.01639 |
-| D | 1/63 | 0.01587 |
+| B     | 1/61        | 0.01639     |
+| D     | 1/63        | 0.01587     |
 
 Due cose da leggere in questa tabella:
 
@@ -75,14 +75,14 @@ Due cose da leggere in questa tabella:
 
 `K` smorza la differenza tra le prime posizioni:
 
-| K | A (1ª + 3ª) | C (2ª + 2ª) | rapporto |
-| --- | --- | --- | --- |
-| 1 | 0.750 | 0.667 | A avanti del 12% |
-| 60 | 0.03227 | 0.03226 | pari |
-| 200 | 0.009901 | 0.009901 | pari |
+| K   | A (1ª + 3ª) | C (2ª + 2ª) | rapporto         |
+| --- | ----------- | ----------- | ---------------- |
+| 1   | 0.750       | 0.667       | A avanti del 12% |
+| 60  | 0.03227     | 0.03226     | pari             |
+| 200 | 0.009901    | 0.009901    | pari             |
 
 Con `K` piccolo il primo posto pesa moltissimo; con `K` grande conta solo
-*esserci in entrambe le liste*. Il valore 60 viene dal paper originale
+_esserci in entrambe le liste_. Il valore 60 viene dal paper originale
 (Cormack, Clarke, Buettcher, 2009) ed è il compromesso che quasi tutti usano.
 
 ### Perché 30 candidati e non 5
@@ -116,7 +116,7 @@ praticabile su milioni di documenti.
 
 Il prezzo: query e documento non si vedono mai. Il vettore del chunk è stato
 prodotto senza sapere che domanda gli sarebbe stata fatta — deve riassumere
-*tutto* il chunk in poche centinaia di numeri, e il dettaglio che risponde alla
+_tutto_ il chunk in poche centinaia di numeri, e il dettaglio che risponde alla
 domanda specifica può semplicemente non sopravvivere alla compressione.
 
 ### Cross-encoder: cosa fa il reranker
@@ -134,10 +134,10 @@ Il prezzo è simmetrico al vantaggio: **non si può precalcolare niente**. Il
 punteggio dipende dalla coppia, quindi ogni domanda richiede un passaggio del
 modello per ogni candidato.
 
-| | passaggi per query | precalcolabile |
-| --- | --- | --- |
-| bi-encoder | 1 (solo la query) | sì, i chunk |
-| cross-encoder | 1 per candidato | no |
+|               | passaggi per query | precalcolabile |
+| ------------- | ------------------ | -------------- |
+| bi-encoder    | 1 (solo la query)  | sì, i chunk    |
+| cross-encoder | 1 per candidato    | no             |
 
 Su questo corpus: riordinare tutti i 521 chunk richiederebbe 521 chiamate per
 ogni domanda. Riordinarne 30 ne richiede 30. Su un corpus vero da un milione di
@@ -156,7 +156,7 @@ ricerca serio:
 Il reranker **non recupera niente**: riordina quello che gli arriva. Quindi
 
 ```
-recall@5 (ibrida + reranker)  ≤  recall@30 (ibrida)
+recall@5 (hybrid + reranker)  ≤  recall@30 (hybrid)
 ```
 
 Se il chunk giusto non è tra i 30 candidati, nessun riordino lo farà comparire.

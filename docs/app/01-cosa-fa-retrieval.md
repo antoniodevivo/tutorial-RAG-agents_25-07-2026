@@ -53,7 +53,7 @@ un modello e interrogato con un altro non solleva nessun errore: restituisce
 risultati, e sono rumore. È il tipo di guasto che si scopre settimane dopo,
 guardando un `recall@5` inspiegabilmente basso.
 
-## 2. Ricerca ibrida
+## 2. Ricerca hybrid
 
 Tre pezzi: un indice BM25, la ricerca sparsa, la fusione.
 
@@ -99,11 +99,11 @@ return rrf_fuse([dense, sparse], limit)                   # 5
 
 Le due gambe recuperano **30** candidati ciascuna e la fusione ne tiene 5.
 Recuperare 30 per tenerne 5 non è spreco: la fusione ha bisogno di vedere un
-chunk in *entrambe* le classifiche per premiarlo, e un chunk che sta ottavo nel
+chunk in _entrambe_ le classifiche per premiarlo, e un chunk che sta ottavo nel
 denso e nono nello sparso è esattamente il caso che l'ibrido deve far salire.
 Con `CANDIDATES = 5` quel chunk non lo vedrebbe nessuno.
 
-## 3. Ibrida + reranker
+## 3. hybrid + reranker
 
 ```python
 candidates = hybrid_search(query, collection, CANDIDATES)  # 30
@@ -115,7 +115,7 @@ modello per ogni domanda. È il pezzo lento, ed è il motivo per cui si riordina
 solo la coda e non tutto il corpus.
 
 **Il reranker non recupera niente.** Il suo tetto è il `recall@30` della
-ricerca ibrida: se il chunk giusto non è tra i 30 candidati, nessun riordino lo
+ricerca hybrid: se il chunk giusto non è tra i 30 candidati, nessun riordino lo
 farà comparire. Da cui la regola diagnostica scritta nel docstring: se la
 strategia 3 non migliora sulla 2, il collo di bottiglia è a monte, e cambiare
 reranker non serve a niente.
@@ -152,19 +152,19 @@ strategie di chunking — che è il punto dell'esercizio — sarebbe falsato.
 
 ## I parametri, e cosa succede a muoverli
 
-| Costante | Valore | Effetto |
-| --- | --- | --- |
-| `TOP_K` | 5 | La K di recall@5. Alzarlo alza il recall e basta: non è un miglioramento, è una misura diversa |
-| `CANDIDATES` | 30 | Profondità del recupero prima di fondere o riordinare. Alzarlo alza il tetto del reranker e il costo |
-| `RRF_K` | 60 | Quanto smorzare il peso delle prime posizioni |
-| `BM25_K1` | 1.5 | Quanto satura la frequenza di un termine |
-| `BM25_B` | 0.75 | Quanto penalizzare i chunk lunghi |
+| Costante     | Valore | Effetto                                                                                              |
+| ------------ | ------ | ---------------------------------------------------------------------------------------------------- |
+| `TOP_K`      | 5      | La K di recall@5. Alzarlo alza il recall e basta: non è un miglioramento, è una misura diversa       |
+| `CANDIDATES` | 30     | Profondità del recupero prima di fondere o riordinare. Alzarlo alza il tetto del reranker e il costo |
+| `RRF_K`      | 60     | Quanto smorzare il peso delle prime posizioni                                                        |
+| `BM25_K1`    | 1.5    | Quanto satura la frequenza di un termine                                                             |
+| `BM25_B`     | 0.75   | Quanto penalizzare i chunk lunghi                                                                    |
 
 ## Cosa non c'è
 
 - **Nessun filtro sui metadati.** `visibility`, `version` e `date` sono nel
   payload ma nessuna strategia li usa. In produzione il filtro per visibilità
-  va applicato *prima* del ranking, non dopo.
+  va applicato _prima_ del ranking, non dopo.
 - **Nessuna cache degli embedding di query.** Ogni esecuzione del golden set
   ricalcola 27 embedding di query.
 - **Nessuna generazione.** Qui si misura solo il recupero. Le 5 domande di
