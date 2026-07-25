@@ -156,8 +156,11 @@ def generate_chunks(md_path) -> None:
         print(f"Nessun Markdown trovato in {md_path}")
         return
 
+    md_name = md_path.name
+    print(f"Generazione chunk per {md_name}...")
+
     for name, strategy in CHUNKING_STRATEGIES.items():
-        out_path = CHUNK_DIR / f"chunks_{name}.jsonl"
+        out_path = CHUNK_DIR / f"md_{md_name}_chunks-{name}.jsonl"
         total = 0
 
         text = md_path.read_text(encoding="utf-8")
@@ -174,3 +177,8 @@ def generate_chunks(md_path) -> None:
                 total += 1
         print(
             f"Strategia {name}: {total} chunk -> docs/chunks/{out_path.name}")
+
+
+def generate_chunks_for_all_md() -> None:
+    for md_path in MD_DIR.glob("*.md"):
+        generate_chunks(md_path)
