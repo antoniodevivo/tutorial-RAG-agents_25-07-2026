@@ -20,7 +20,8 @@ from typing import Iterator
 
 from ..clients.ollama import oclient
 from ..clients.qdrant import qclient
-from .retrieval import COLLECTIONS, STRATEGIES, TOP_K, Hit, SearchFn
+from .retrieval import (COLLECTIONS, RRF_K, STRATEGIES, TOP_K, Hit,
+                        SearchFn, recall_at_k)
 
 # Il generatore. llava-phi3 e' quello disponibile in locale (ed e' anche il
 # reranker di retrieval.py): 3.8B parametri, fragile sull'italiano. E' la
@@ -38,7 +39,7 @@ DEFAULT_STRATEGY = "hybrid"
 
 # Le chiavi di STRATEGIES hanno spazi e parentesi, scomode da digitare.
 STRATEGY_ALIASES = {
-    "semantic": "semantica",
+    "semantic": "semantic",
     "hybrid": "hybrid (RRF)",
     "reranker": "hybrid + reranker",
 }
@@ -109,14 +110,63 @@ def generate(question: str, hits: list[Hit]) -> Iterator[str]:
         yield part["message"]["content"]
 
 
-def print_sources(hits: list[Hit]) -> None:
+def normalize_score(score: float, strategy: str) -> float:
+    """Score grezzo -> 0-1: le tre strategie vivono su scale incomparabili.
+
+    Coseno gia' 0-1, RRF ~0.01-0.03 (il massimo teorico e' un chunk primo in
+    entrambe le liste: 2/(RRF_K+1)), reranker 0-10. Senza normalizzare, una
+    sola soglia di confidenza sarebbe giusta per una strategia e arbitraria
+    per le altre due.
+    """
+    if strategy == "reranker":
+        return score / 10
+    if strategy == "hybrid":
+        return min(1.0, score / (2 / (RRF_K + 1)))
+    return max(0.0, min(1.0, score))  # semantic: coseno, gia' in scala
+
+
+def confidence_band(normalized: float) -> str:
+    if normalized >= 0.65:
+        return "high"
+    if normalized >= 0.35:
+        return "medium"
+    return "low"
+
+
+def print_sources(hits: list[Hit], strategy: str) -> None:
     """Le fonti in fondo: senza, [1] e' un numero che nessuno puo' verificare."""
     print("\n\nFonti:")
     for n, hit in enumerate(hits, start=1):
-        print(f"  [{n}] {source_label(hit)}")
+        normalized = normalize_score(hit.score, strategy)
+        band = confidence_band(normalized)
+        print(f"  [{n}] {source_label(hit)}   {normalized:.0%} ({band})")
 
 
-def answer(question: str, search_fn: SearchFn, collection: str) -> None:
+# Il benchmark e' lo stesso recall_at_k di retrieval.py: qui serve solo da
+# punto di riferimento ("questa strategia di solito recupera l'85% dei chunk
+# giusti"), non a scegliere la strategia. Si calcola sul golden set intero
+# una sola volta a sessione - con il reranker vuol dire ~30 chiamate al
+# modello per ognuna delle domande del golden set, lo stesso ordine di costo
+# della strategia scelta per la chat - e resta in cache per i turni dopo.
+_BENCHMARK_CACHE: dict[tuple[str, str], dict] = {}
+
+
+def strategy_benchmark(strategy: str, search_fn: SearchFn, collection: str) -> dict:
+    key = (strategy, collection)
+    if key not in _BENCHMARK_CACHE:
+        print("\n(prima misurazione della strategia sul golden set, "
+              "puo' volerci qualche minuto con il reranker...)")
+        _BENCHMARK_CACHE[key] = recall_at_k(search_fn, collection)
+    return _BENCHMARK_CACHE[key]
+
+
+def print_benchmark(strategy: str, search_fn: SearchFn, collection: str) -> None:
+    benchmark = strategy_benchmark(strategy, search_fn, collection)
+    print(f"Benchmark strategia (golden set): recall@5 {benchmark['recall']:.0%} "
+          f"· risposte complete {benchmark['complete']:.0%}")
+
+
+def answer(question: str, search_fn: SearchFn, collection: str, strategy: str) -> None:
     """Un turno intero: recupera, genera, dice da dove viene la risposta."""
     hits = search_fn(question, collection, TOP_K)
     if not hits:
@@ -125,7 +175,8 @@ def answer(question: str, search_fn: SearchFn, collection: str) -> None:
 
     for piece in generate(question, hits):
         print(piece, end="", flush=True)
-    print_sources(hits)
+    print_sources(hits, strategy)
+    print_benchmark(strategy, search_fn, collection)
     print()
 
 
@@ -142,14 +193,14 @@ def read_question() -> str | None:
     return None if question.lower() in {"esci", "exit", "quit"} else question
 
 
-def chat_loop(search_fn: SearchFn, collection: str) -> None:
+def chat_loop(search_fn: SearchFn, collection: str, strategy: str) -> None:
     while True:
         question = read_question()
         if question is None:
             print("\nA presto.")
             return
         if question:
-            answer(question, search_fn, collection)
+            answer(question, search_fn, collection, strategy)
 
 
 def parse_args() -> argparse.Namespace:
@@ -165,10 +216,15 @@ def parse_args() -> argparse.Namespace:
         "-s", "--strategy", default=DEFAULT_STRATEGY,
         choices=list(STRATEGY_ALIASES),
         help="Strategia di retrieval (default: %(default)s).")
+    parser.add_argument(
+        "--chat",
+        action="store_true",
+        help="Avvia la sessione di chat interattiva.",
+    )
     return parser.parse_args()
 
 
-def main() -> None:
+def chat_main() -> None:
     args = parse_args()
 
     if not qclient.collection_exists(args.collection):
@@ -181,12 +237,12 @@ def main() -> None:
           f"modello: {CHAT_MODEL}")
 
     if args.question:
-        answer(args.question, search_fn, args.collection)
+        answer(args.question, search_fn, args.collection, args.strategy)
         return
 
     print("Scrivi la domanda. 'esci' per uscire.\n")
-    chat_loop(search_fn, args.collection)
+    chat_loop(search_fn, args.collection, args.strategy)
 
 
 if __name__ == "__main__":
-    main()
+    chat_main()
