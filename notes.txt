@@ -8,3 +8,8 @@ uv venv
 
 python -m src.main --gchunks
 
+
+------------------------
+
+http://localhost:6333/dashboard
+
