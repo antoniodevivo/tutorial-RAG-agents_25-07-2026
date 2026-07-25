@@ -10,6 +10,25 @@ MD_DIR = BASE_DIR / "docs" / "md"
 PROBLEMS_DIR = MD_DIR / "problems"
 
 
+def to_markdown(source, **kwargs) -> str:
+    """Converte in Markdown anteponendo a ogni pagina un marcatore `<!-- pagina: N -->`.
+
+    Il marcatore è l'unica traccia del numero di pagina che sopravvive alla
+    conversione: serve al chunking per compilare il metadato `pagina`.
+
+    Args:
+        source: percorso del PDF o documento pymupdf già aperto.
+        **kwargs: opzioni passate a pymupdf4llm.to_markdown (es. pages).
+
+    Returns:
+        Il Markdown del documento, con i marcatori di pagina.
+    """
+
+    pages = pymupdf4llm.to_markdown(source, page_chunks=True, show_progress=False, **kwargs)
+    first = kwargs.get("pages", [0])[0] + 1  # numero della prima pagina convertita
+    return "".join(f"\n<!-- pagina: {first + i} -->\n\n{p['text']}" for i, p in enumerate(pages))
+
+
 def convert_page_by_page(pdf_path: Path, errors: list[str]) -> str:
     """Converte il PDF una pagina alla volta, saltando quelle che danno errore.
 
@@ -34,7 +53,7 @@ def convert_page_by_page(pdf_path: Path, errors: list[str]) -> str:
     total = doc.page_count
     for i in range(total):
         try:
-            pages.append(pymupdf4llm.to_markdown(doc, pages=[i], show_progress=False))
+            pages.append(to_markdown(doc, pages=[i]))
         except Exception as e:
             errors.append(f"Pagina {i + 1} saltata: {type(e).__name__}: {e}")
     doc.close()
@@ -62,7 +81,7 @@ def convert_pdf_to_markdown(pdf_path: Path, md_path: Path) -> bool:
     pymupdf.TOOLS.reset_mupdf_warnings()
 
     try:
-        md = pymupdf4llm.to_markdown(str(pdf_path))
+        md = to_markdown(str(pdf_path))
     except Exception as e:
         print(f"Errore durante la conversione di {pdf_path.name}: {e}")
         print("  Riprovo pagina per pagina...")
