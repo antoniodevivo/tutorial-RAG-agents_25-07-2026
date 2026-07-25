@@ -1,12 +1,17 @@
 """Entrypoint del modulo.
 
-Uso:
+Uso (dalla radice del repo, non da src/):
     python -m src.main --pdf2md
+
+`src` deve essere il pacchetto radice: i moduli sotto src/ si importano tra
+loro con percorsi relativi (`from ..clients.ollama import oclient`), che
+risalgono fino a `src` e non oltre. Lanciando da src/ quei percorsi escono
+dal pacchetto e Python solleva `attempted relative import beyond top-level`.
 """
 
 import argparse
-from scripts.chunking_simple import generate_chunks_for_all_md
-from scripts.pdf2md import convert_all_pdfs
+from src.scripts.chunking_simple import generate_chunks_for_all_md
+from src.scripts.pdf2md import convert_all_pdfs
 
 
 def parse_args() -> argparse.Namespace:
