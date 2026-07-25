@@ -13,6 +13,9 @@ tre strategie di recupero sul corpus CCNL, tutte misurate con lo stesso
 | [03-fusione-rrf-e-reranking.md](03-fusione-rrf-e-reranking.md) | Perché si fondono le posizioni e non i punteggi; bi-encoder contro cross-encoder |
 | [04-recall-at-5.md](04-recall-at-5.md) | La metrica: cosa misura, cosa non misura, come leggerla |
 
+I guasti incontrati e come sono stati diagnosticati stanno in
+[../problems/](../problems/).
+
 ## Il flusso completo
 
 ```

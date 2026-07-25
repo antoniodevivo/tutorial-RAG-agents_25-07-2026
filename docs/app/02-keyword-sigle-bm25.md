@@ -1,7 +1,8 @@
 # Ricerca per parole chiave: BM25, e perché le sigle sono il caso difficile
 
 Tutti i numeri di questo documento sono calcolati sul corpus reale: i due CCNL
-tagliati con la strategia B, **97 chunk**, lunghezza media **1206 token**.
+tagliati con la strategia B a `MAX_CHARS = 1800`, **521 chunk**, lunghezza
+media **224 token**.
 
 ## Il problema
 
@@ -60,30 +61,38 @@ esattamente questo:
 idf(t) = ln( 1 + (N - df(t) + 0.5) / (df(t) + 0.5) )
 ```
 
-dove `N` è il numero di chunk (97) e `df(t)` in quanti chunk compare il token.
+dove `N` è il numero di chunk (521) e `df(t)` in quanti chunk compare il token.
 
-I valori veri del corpus, ordinati dal più informativo al meno:
+I valori veri del corpus, dal più informativo al meno:
 
 | Token | df | idf | Commento |
 | --- | --- | --- | --- |
-| `2s` | 1 | **4.180** | un solo chunk: il massimo potere discriminante |
-| `886` | 1 | **4.180** | frammento di `1.886,50` |
-| `sgsl` | 2 | 3.669 | sigla rara = oro |
-| `1977`, `792`, `1985` | 2 | 3.669 | i riferimenti normativi delle festività soppresse |
-| `mog` | 3 | 3.332 | |
-| `rls` | 4 | 3.081 | |
-| `604`, `1966` | 5 | 2.880 | la Legge 604/1966 |
-| `rlst` | 8 | 2.445 | |
-| `bi` | 21 | 1.517 | frammento di `E.BI.A.S.P.` — già quasi rumore |
-| `p` | 31 | 1.135 | |
-| `ferie` | 34 | 1.044 | parola comune del dominio |
-| `s` | 44 | 0.789 | |
-| `lavoratore` | 86 | 0.125 | quasi ovunque: non discrimina |
-| `contratto`, `e`, `a`, `di` | 97 | **0.005** | in tutti i chunk: contributo nullo |
+| `2s` | 1 | **5.852** | un solo chunk: il massimo potere discriminante |
+| `886` | 1 | **5.852** | frammento di `1.886,50` |
+| `sgsl` | 2 | 5.341 | sigla rara = oro |
+| `1977`, `792`, `1985` | 2 | 5.341 | i riferimenti delle festività soppresse |
+| `garanzia` | 2 | 5.341 | |
+| `perequativo` | 3 | 5.005 | |
+| `mog` | 4 | 4.754 | |
+| `604`, `1966` | 5 | 4.553 | la Legge 604/1966 |
+| `rls` | 7 | 4.243 | |
+| `54` | 12 | 3.732 | |
+| `rlst` | 14 | 3.584 | |
+| `bi` | 35 | 2.688 | frammento di `E.BI.A.S.P.` — già quasi rumore |
+| `ferie` | 42 | 2.508 | parola comune del dominio |
+| `p` | 58 | 2.189 | |
+| `s` | 77 | 1.907 | |
+| `lavoratore` | 267 | 0.669 | in metà dei chunk: discrimina poco |
+| `contratto` | 288 | 0.593 | |
+| `a` | 461 | 0.123 | |
+| `e` | 507 | 0.028 | |
+| `di` | 521 | **0.001** | in *tutti* i chunk: contributo nullo |
 
-Da notare: **non serve una lista di stopword**. `di`, `e`, `a` valgono 0.005
-contro i 4.180 di `2s`: sono 800 volte meno influenti, si azzerano da soli. È
-la proprietà più elegante dell'IDF.
+Da notare: **non serve una lista di stopword**. `di` vale 0.001 contro i 5.852
+di `2s`: si azzera da solo. È la proprietà più elegante dell'IDF.
+
+Da notare anche che `bi`, il frammento centrale di `E.BI.A.S.P.`, vale *meno* di
+`ferie`. Ci torniamo.
 
 ### Passo 3: quante volte compare — la TF, saturata
 
@@ -116,21 +125,21 @@ Un chunk lungo contiene più parole, quindi ha più probabilità di contenere la
 query per puro caso. `b = 0.75` corregge:
 
 ```
-norm = 1 - b + b · (len / avgdl) = 0.25 + 0.75 · (len / 1206)
+norm = 1 - b + b · (len / avgdl) = 0.25 + 0.75 · (len / 224)
 ```
 
 Con una sola occorrenza del termine:
 
 | lunghezza chunk | norm | contributo |
 | --- | --- | --- |
-| 300 token | 0.44 | **1.51** |
-| 1206 (media) | 1.00 | 1.00 |
-| 3000 token | 2.12 | **0.60** |
+| 100 token | 0.59 | **1.33** |
+| 224 (media) | 1.00 | 1.00 |
+| 500 token | 1.92 | **0.64** |
 
-La stessa singola occorrenza vale **2.5 volte di più** in un chunk corto che in
-uno lungo. Ha una conseguenza diretta sull'esercizio del chunking: con
-`MAX_TOKENS = 1200` i chunk sono enormi, la normalizzazione li penalizza tutti
-allo stesso modo, e BM25 perde gran parte della sua capacità di discriminare.
+La stessa singola occorrenza vale **il doppio** in un chunk corto che in uno
+lungo. È il motivo per cui la taglia dei chunk non è un dettaglio: vedi
+[l'effetto misurato](../problems/01-embedding-context-overflow.md#leffetto-collaterale-che-conta)
+del passaggio da 1206 a 224 token medi.
 
 ### Il punteggio finale
 
@@ -139,7 +148,7 @@ BM25(q, d) = Σ  idf(t) · saturazione(tf, len)
             t∈q
 ```
 
-Somma sui termini della query. Nel codice, `Bm25Index.search()`, righe 144-169.
+Somma sui termini della query. Nel codice, `Bm25Index.search()`.
 
 ## Perché le sigle sono il caso difficile
 
@@ -155,23 +164,22 @@ per esteso. Ma:
 'E.BI.A.S.P.'  ->  ['e', 'bi', 'a', 's', 'p']
 ```
 
-Cinque token, di cui quattro sono lettere singole. Guardiamo i loro IDF:
+Cinque token, di cui quattro sono lettere singole. I loro IDF:
 
 | token | df | idf |
 | --- | --- | --- |
-| `e` | 97 | 0.005 |
-| `a` | 97 | 0.005 |
-| `s` | 44 | 0.789 |
-| `p` | 31 | 1.135 |
-| `bi` | 21 | 1.517 |
+| `e` | 507 | 0.028 |
+| `a` | 461 | 0.123 |
+| `s` | 77 | 1.907 |
+| `p` | 58 | 2.189 |
+| `bi` | 35 | 2.688 |
 
 Il token che identificherebbe la sigla — `biasp`, o `ebiasp` — **non esiste
 nell'indice**: `df = 0`. La sigla è stata polverizzata in frammenti generici, e
-la query "Cosa disciplina l'Art.118?" viene salvata solo da `118`, non dalla
-sigla.
+la somma dei cinque IDF non raggiunge quella di un solo token raro.
 
 Confronta con `SGSL`, che non ha punti dentro: resta intero, `df = 2`,
-`idf = 3.669`, e chi lo cerca lo trova al primo colpo.
+`idf = 5.341`, e chi lo cerca lo trova al primo colpo.
 
 **La differenza tra le due sigle non è semantica, è punteggiatura.**
 
@@ -185,9 +193,10 @@ Confronta con `SGSL`, che non ha punti dentro: resta intero, `df = 2`,
 
 Il documento parla di "Elemento di Garanzia Retributiva" per esteso, in
 `Art.30`, e **la sigla EGR non compare mai**. BM25 non ha nessun token da
-agganciare: il punteggio è zero, la ricerca lessicale restituisce il nulla.
+agganciare: il punteggio è zero, la ricerca lessicale restituisce il nulla — e
+infatti nella misura sotto la domanda C3 fallisce.
 
-Qui l'unica strada è la semantica, che può avvicinare "EGR" alla forma estesa —
+Qui l'unica strada è la semantica, che può avvicinare "EGR" alla forma estesa,
 o un dizionario di sinonimi che espanda la sigla prima della query.
 
 ### Il caso speculare: la parafrasi
@@ -207,25 +216,27 @@ parola** con la domanda.
 
 ### Il risultato misurato
 
-BM25 da solo sul golden set, 97 chunk, strategia B:
+BM25 da solo sul golden set, 521 chunk, strategia B:
 
 ```
-recall@5 61%  |  domande complete 59%
+recall@5 55%  |  domande complete 52%
 
-   codice           5/5     <- sigle, articoli, riferimenti normativi
    semplice         8/10
+   codice           3/5     <- falliscono C2 e C3
    tabella          2/4
    multi-passaggio  1/3
    parafrasi        0/5     <- azzerato
 ```
 
-**5/5 sui codici e 0/5 sulle parafrasi.** Non è un caso, è la firma del
-metodo: dove c'è una stringa da agganciare, il lessicale vince; dove la
-domanda non condivide vocabolario col documento, non ha niente su cui lavorare.
+Le due righe estreme sono la firma del metodo. `parafrasi 0/5`: dove la domanda
+non condivide vocabolario col documento, il lessicale non ha niente su cui
+lavorare. `codice 3/5`: dove c'è una stringa da agganciare funziona — e i due
+fallimenti sono esattamente quelli che la teoria prevede.
 
-> Una cautela sul 5/5: con `MAX_TOKENS = 1200` ogni chunk copre una decina di
-> articoli, quindi *contenere l'ancora* è più facile del dovuto. Il pattern
-> resta valido, i valori assoluti vanno riletti con chunk più piccoli.
+- **C3 (EGR)** fallisce per il guasto 2: `df = 0`, non c'è niente da trovare.
+- **C2** chiede i riferimenti delle festività soppresse, e la stessa frase
+  identica sta in **entrambi** i CCNL. Servono due chunk, uno per documento, e
+  BM25 li ordina quasi allo stesso punteggio: nei primi 5 ne entra uno solo.
 
 ## Cosa si può fare (non ancora implementato)
 
@@ -247,8 +258,8 @@ Territoriale`. Cura il guasto 2, ma va scritto a mano e mantenuto: si giustifica
 solo per le sigle che ricorrono davvero nel dominio.
 
 **3. Tenere i numeri interi.** `1.886,50 → ['1','886','50']` funziona per caso,
-perché `886` è raro. Con `1.234,00` i frammenti `1`, `234`, `00` sono comuni e
-il match sparisce. Un token `1.886,50` intero sarebbe stabile.
+perché `886` è raro (`df = 1`). Con `1.234,00` i frammenti sarebbero comuni e il
+match sparirebbe. Un token `1.886,50` intero sarebbe stabile.
 
 Nessuno di questi serve alle parafrasi: quelle restano di competenza della
 ricerca semantica, ed è esattamente il motivo per cui la strategia 2 fonde le

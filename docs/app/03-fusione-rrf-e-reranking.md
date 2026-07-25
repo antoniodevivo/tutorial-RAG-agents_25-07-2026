@@ -139,7 +139,7 @@ modello per ogni candidato.
 | bi-encoder | 1 (solo la query) | sì, i chunk |
 | cross-encoder | 1 per candidato | no |
 
-Su questo corpus: riordinare tutti i 97 chunk richiederebbe 97 chiamate per
+Su questo corpus: riordinare tutti i 521 chunk richiederebbe 521 chiamate per
 ogni domanda. Riordinarne 30 ne richiede 30. Su un corpus vero da un milione di
 chunk la prima opzione semplicemente non esiste.
 

@@ -27,15 +27,15 @@ risposta presa dal contratto sbagliato sembri corretta.
 
 `documento › articolo › pagina` + una **ancora** (citazione letterale che deve
 comparire nel chunk recuperato). Non l'indice di riga del `.jsonl`: quello
-cambia a ogni modifica di `MAX_TOKENS` o di strategia, l'ancora no. Il criterio
+cambia a ogni modifica di `MAX_CHARS` o di strategia, l'ancora no. Il criterio
 di successo è *il chunk recuperato contiene l'ancora*, valutabile su qualsiasi
 configurazione di chunking.
 
-> **Nota sui metadati attuali.** Con `MAX_TOKENS = 1200` *parole*, i chunk della
-> strategia B superano gli 8.000 caratteri e coprono una decina di articoli;
-> `section` registra l'ultimo titolo del chunk, non quello del contenuto. Un
-> chunk etichettato `Tabella retributiva A` può contenere le declaratorie dei
-> livelli. Non usare `section` come chiave di valutazione finché non è sistemato.
+> **Nota sui metadati.** Il chunking ora taglia a `MAX_CHARS = 1800` e cattura
+> il percorso dei titoli all'inizio del chunk, quindi `section` è affidabile.
+> Non lo era con la versione precedente (`MAX_TOKENS = 1200` *parole*), dove
+> registrava l'ultimo titolo del chunk invece di quello del contenuto: i
+> risultati misurati prima di quel fix non sono confrontabili con questi.
 
 Legenda del campo **Chunk atteso**: `MM` = metalmeccanico, `CO` = commercio.
 
@@ -271,7 +271,7 @@ domanda fuori tema, ed è il caso che si verifica in produzione.
 1. **Prima il retrieval, da solo.** Per ognuna delle 27 domande con chunk atteso: il chunk che contiene l'ancora è tra i primi `k`? Recall@k prima di guardare le risposte generate. Se il chunk giusto non arriva, il resto non è diagnosticabile.
 2. **Poi le risposte**, con i chunk giusti forzati nel contesto. Separa gli errori di retrieval da quelli di generazione.
 3. **Le 5 domande finali** (A1, A2, X1, X2, X3) si valutano solo sul comportamento: astensione = successo; risposta plausibile = fallimento, anche se il numero è corretto.
-4. **Non aggiustare le domande per farle passare.** Se una domanda fallisce sistematicamente, quella è la diagnosi: valore di `MAX_TOKENS`, assenza di overlap, tabelle spezzate, `section` inaffidabile, ranking che deduplica documenti gemelli.
+4. **Non aggiustare le domande per farle passare.** Se una domanda fallisce sistematicamente, quella è la diagnosi: valore di `MAX_CHARS`, assenza di overlap, tabelle spezzate, `section` inaffidabile, ranking che deduplica documenti gemelli.
 
 ### Punteggio
 

@@ -17,8 +17,21 @@ PDF_DIR = BASE_DIR / "docs" / "pdf"
 MD_DIR = BASE_DIR / "docs" / "md"
 CHUNK_DIR = BASE_DIR / "docs" / "chunks"
 
-MAX_TOKENS = 1200
 EMBED_MODEL = "embeddinggemma"
+
+# Taglia del chunk in CARATTERI, non in parole: embeddinggemma ha 2048 token di
+# contesto, e quanti caratteri ci stiano dipende dal tipo di testo. Misurato su
+# questo corpus, saturando il contesto:
+#   prosa italiana  8895 caratteri  (4.34 char/token)
+#   OCR scannerizzato 3251          (1.59)
+#   tabelle         2893            (1.41)  <- il caso peggiore
+# Con 1800 caratteri anche una tabella sta sotto i ~1280 token: ~38% di
+# margine. Vedi docs/problems/01-embedding-context-overflow.md.
+MAX_CHARS = 1800
+
+# Oltre questa soglia `embed()` si rifiuta di chiamare il modello: meglio un
+# errore che dice cosa fare di un 500 dal server a meta' del corpus.
+EMBED_MAX_CHARS = 2400
 
 # Marcatore di pagina inserito da pdf2md prima di ogni pagina convertita.
 PAGE_RE = re.compile(r"^<!--\s*pagina:\s*(\d+)\s*-->")
@@ -51,6 +64,22 @@ def chunk_uuid(document: str, config: str, section: str, ordinal: int) -> str:
 
 
 def embed(text: str) -> list[float]:
+    """Embedding del testo, con i due controlli che il server non fa.
+
+    Ollama su testo vuoto non solleva un errore: restituisce un vettore di
+    dimensione 0, che Qdrant rifiuterebbe molto piu' avanti e con un messaggio
+    che non c'entra niente. Su testo troppo lungo risponde 500 senza dire
+    quanto era lungo. Meglio fallire qui, dicendo cosa fare.
+    """
+
+    if not text.strip():
+        raise ValueError("embed(): testo vuoto, il modello restituirebbe un "
+                         "vettore di dimensione 0")
+    if len(text) > EMBED_MAX_CHARS:
+        raise ValueError(
+            f"embed(): {len(text)} caratteri eccedono il contesto di "
+            f"{EMBED_MODEL} (limite prudenziale {EMBED_MAX_CHARS}). "
+            f"Abbassa MAX_CHARS.")
     return oclient.embeddings(model=EMBED_MODEL, prompt=text)["embedding"]
 
 
@@ -91,7 +120,7 @@ def words_with_pages(text):
 def fixed_size_chunking(text, metadata=None, config="A") -> List[ChunkWithEmbedding]:
     chunks = []
     current_chunk = []
-    current_tokens = 0
+    current_size = 0  # caratteri accumulati, spazi di giunzione compresi
     chunk_page = None  # pagina in cui inizia il chunk in corso
     # Senza sezioni l'ordinale è per forza globale: una modifica in testa al
     # documento sposta l'id di tutti i chunk successivi. È il prezzo del
@@ -99,19 +128,19 @@ def fixed_size_chunking(text, metadata=None, config="A") -> List[ChunkWithEmbedd
     ordinal = 0
 
     for word, page in words_with_pages(text):
-        if not current_chunk:
-            chunk_page = page
-
-        current_tokens += 1
-        if current_tokens <= MAX_TOKENS:
-            current_chunk.append(word)
-        else:
-            chunks.append(build_chunk(
-                ' '.join(current_chunk), metadata, "", chunk_page, ordinal, config))
-            ordinal += 1
-            current_chunk = [word]
-            current_tokens = 1
-            chunk_page = page
+        for piece in split_oversized(word):
+            extra = len(piece) + (1 if current_chunk else 0)
+            if current_chunk and current_size + extra > MAX_CHARS:
+                chunks.append(build_chunk(
+                    ' '.join(current_chunk), metadata, "", chunk_page,
+                    ordinal, config))
+                ordinal += 1
+                current_chunk, current_size, chunk_page = [piece], len(piece), page
+            else:
+                if not current_chunk:
+                    chunk_page = page
+                current_chunk.append(piece)
+                current_size += extra
 
     # Append the last chunk
     if current_chunk:
@@ -121,12 +150,53 @@ def fixed_size_chunking(text, metadata=None, config="A") -> List[ChunkWithEmbedd
     return chunks
 
 
+def split_oversized(text, limit=MAX_CHARS):
+    """Taglia a forza una stringa piu' lunga del limite.
+
+    Ultima rete: nei documenti OCR una singola 'parola' puo' essere lunga
+    centinaia di caratteri, e nessun accumulo per parole la contiene.
+    """
+
+    if len(text) <= limit:
+        yield text
+        return
+    for i in range(0, len(text), limit):
+        yield text[i:i + limit]
+
+
+def split_long_lines(lines, limit=MAX_CHARS):
+    """Spezza le righe che da sole supererebbero il limite.
+
+    Il taglio strutturale non divide mai dentro una riga, quindi una riga sola
+    piu' lunga di `limit` diventerebbe un chunk oltre il contesto del modello.
+    Non e' teoria: nel corpus c'e' una riga da 1234 parole (24.000 caratteri),
+    una tabella che la conversione ha appiattito.
+    """
+
+    for line in lines:
+        if len(line) <= limit:
+            yield line
+            continue
+        buffer, size = [], 0
+        for word in line.split():
+            for piece in split_oversized(word, limit):
+                extra = len(piece) + (1 if buffer else 0)
+                if buffer and size + extra > limit:
+                    yield " ".join(buffer)
+                    buffer, size = [piece], len(piece)
+                else:
+                    buffer.append(piece)
+                    size += extra
+        if buffer:
+            yield " ".join(buffer)
+
+
 def cut_from_structure(text, metadata=None, config="B") -> List[ChunkWithEmbedding]:
     # Split the text into lines
-    lines = text.splitlines()
+    lines = split_long_lines(text.splitlines(), MAX_CHARS)
     chunks = []
     current_chunk = []
-    current_tokens = 0
+    current_size = 0  # caratteri accumulati, a-capo di giunzione compresi
     headings = []  # pila dei titoli aperti, uno per livello
     current_page = None  # pagina aperta dall'ultimo marcatore letto
     chunk_page = None  # pagina in cui inizia il chunk in corso
@@ -162,17 +232,17 @@ def cut_from_structure(text, metadata=None, config="B") -> List[ChunkWithEmbeddi
             chunk_page = current_page
             chunk_section = " > ".join(headings)
 
-        # Count tokens in the line
-        line_tokens = len(line.split())
-        if current_tokens + line_tokens <= MAX_TOKENS:
+        # Count chars in the line, +1 per l'a-capo che la unira' alle altre
+        extra = len(line) + (1 if current_chunk else 0)
+        if current_size + extra <= MAX_CHARS:
             current_chunk.append(line)
-            current_tokens += line_tokens
+            current_size += extra
         else:
             chunks.append(build_chunk(
                 '\n'.join(current_chunk), metadata, chunk_section, chunk_page,
                 take_ordinal(chunk_section), config))
             current_chunk = [line]
-            current_tokens = line_tokens
+            current_size = len(line)
             chunk_page = current_page
             chunk_section = " > ".join(headings)
 
@@ -217,8 +287,8 @@ def generate_chunks(md_path) -> None:
                 "date": str(date.today()),
             }
             # Strategia e parametri fanno parte dell'identità: senza, i chunk
-            # di A e B collidono, e ritoccare MAX_TOKENS sovrascrive i vecchi.
-            config = f"{name}-{MAX_TOKENS}"
+            # di A e B collidono, e ritoccare MAX_CHARS sovrascrive i vecchi.
+            config = f"{name}-{MAX_CHARS}"
             for chunk in strategy(text, metadata, config):
                 f.write(chunk.model_dump_json() + "\n")
                 total += 1

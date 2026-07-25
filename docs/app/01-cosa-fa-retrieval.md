@@ -76,7 +76,7 @@ resta lì per tutte le domande del golden set.
 
 > **Perché non lo fa Qdrant.** Qdrant supporta BM25 nativo con i vettori
 > sparsi, ma solo se la collection è stata creata con uno slot sparso
-> (`sparse_vectors_config`) — queste non ce l'hanno. Su 97 chunk ricalcolarlo
+> (`sparse_vectors_config`) — queste non ce l'hanno. Su 521 chunk ricalcolarlo
 > in Python costa millisecondi, e in un tutorial ha il vantaggio di rendere la
 > formula leggibile invece di nasconderla dietro una chiamata.
 
@@ -166,6 +166,6 @@ strategie di chunking — che è il punto dell'esercizio — sarebbe falsato.
   payload ma nessuna strategia li usa. In produzione il filtro per visibilità
   va applicato *prima* del ranking, non dopo.
 - **Nessuna cache degli embedding di query.** Ogni esecuzione del golden set
-  ricalcola 25 embedding di query.
+  ricalcola 27 embedding di query.
 - **Nessuna generazione.** Qui si misura solo il recupero. Le 5 domande di
   astensione del golden set non sono valutabili a questo livello.

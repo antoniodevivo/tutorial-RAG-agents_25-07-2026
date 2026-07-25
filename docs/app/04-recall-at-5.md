@@ -35,7 +35,7 @@ anchor in normalize(hit.text) and hit.document == expected["document"]
 
 ### Perché l'ancora e non l'id del chunk
 
-Un `chunk_id` dipende da `MAX_TOKENS`, dalla strategia, dal namespace: cambia
+Un `chunk_id` dipende da `MAX_CHARS`, dalla strategia, dal namespace: cambia
 un parametro e l'intero golden set va riscritto. Un'**ancora testuale** — una
 citazione letterale che deve comparire nel chunk recuperato — è indipendente da
 come il documento è stato tagliato. Lo stesso golden set misura la strategia A e
@@ -81,7 +81,7 @@ dice niente di azionabile; la ripartizione dice cosa aggiustare:
 | `tabella` | 4 | il parsing e la taglia dei chunk | tabelle spezzate dall'intestazione |
 | `multi-passaggio` | 3 | i limiti del recupero singolo | serve scomporre la query |
 
-Un `recall@5` del 61% non dice cosa fare. `parafrasi 0/5` sì.
+Un `recall@5` del 55% non dice cosa fare. `parafrasi 0/5` sì.
 
 ## Cosa è escluso, e perché
 
@@ -100,31 +100,34 @@ contesto sembri buono. È il caso che si verifica in produzione.
 
 ## Il risultato che abbiamo
 
-L'unica misura completata finora è BM25 da solo, su 97 chunk della strategia B
+L'unica misura completata finora è BM25 da solo, su 521 chunk della strategia B
 (le collection Qdrant non sono ancora popolate):
 
 ```
-recall@5 61%  |  domande complete 59%
+recall@5 55%  |  domande complete 52%
 
-   codice           5/5
    semplice         8/10
+   codice           3/5
    tabella          2/4
    multi-passaggio  1/3
    parafrasi        0/5
 ```
 
-Da leggere così: la ricerca lessicale è **perfetta** dove c'è una stringa da
-agganciare e **inutile** dove non c'è. Il `61%` complessivo nasconde entrambe
-le informazioni; la ripartizione le rende evidenti. Vedi
+Da leggere così: la ricerca lessicale funziona dove c'è una stringa da
+agganciare e non serve a niente dove non c'è. Il `55%` complessivo nasconde
+entrambe le informazioni; la ripartizione le rende evidenti. Vedi
 [02-keyword-sigle-bm25.md](02-keyword-sigle-bm25.md).
 
 ## Le insidie
 
-**Il chunking gonfia il punteggio.** Con `MAX_TOKENS = 1200` ogni chunk copre
-una decina di articoli: contenere l'ancora è molto più facile che con chunk da
-300 token. Un recall alto su chunk enormi non è una buona pipeline di recupero,
-è un contesto che il generatore dovrà setacciare da solo. Confronta sempre
-recall@5 e taglia media dei chunk.
+**Il chunking gonfia il punteggio.** Non è teoria: con `MAX_TOKENS = 1200`
+*parole* i chunk erano da 1206 token e coprivano una decina di articoli, e la
+stessa misura dava `recall@5 61%` con `codice 5/5`. Passando a chunk da 224
+token il punteggio è **sceso** a 55% e 3/5 — perché prima contenere l'ancora
+era quasi gratis. Un recall alto su chunk enormi non è una buona pipeline di
+recupero, è un contesto che il generatore dovrà setacciare da solo. Confronta
+sempre recall@5 e taglia media dei chunk. Storia completa in
+[../problems/01-embedding-context-overflow.md](../problems/01-embedding-context-overflow.md).
 
 **Alzare K non è un miglioramento.** `recall@20` sarà sempre ≥ `recall@5`. Se
 si alza K bisogna alzarlo anche nel sistema vero, e pagare il contesto in più.
