@@ -18,6 +18,10 @@ MD_DIR = BASE_DIR / "docs" / "md"
 CHUNK_DIR = BASE_DIR / "docs" / "chunks"
 
 EMBED_MODEL = "embeddinggemma"
+# Dimensione del vettore restituito da embeddinggemma (Ollama non la espone,
+# misurata chiamando embed() su una stringa qualsiasi). Usata da ingestion.py
+# per configurare le collection Qdrant: va aggiornata insieme a EMBED_MODEL.
+EMBED_DIM = 768
 
 # Taglia del chunk in CARATTERI, non in parole: embeddinggemma ha 2048 token di
 # contesto, e quanti caratteri ci stiano dipende dal tipo di testo. Misurato su

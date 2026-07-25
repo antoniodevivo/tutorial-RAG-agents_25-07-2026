@@ -5,3 +5,6 @@ uv export --format requirements-txt > requirements.txt
 
 # create e virtual env
 uv venv
+
+python -m src.main --gchunks
+

@@ -2,6 +2,7 @@ from pathlib import Path
 from qdrant_client import models
 from ...clients.qdrant import qclient
 
+from ..chunking_simple import EMBED_DIM
 from ...models.validators.chunks import ChunkWithEmbedding
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -18,10 +19,21 @@ COLLECTIONS = [
     }
 ]
 
+for collection in COLLECTIONS:
+    if not qclient.collection_exists(collection["name"]):
+        qclient.recreate_collection(
+            collection_name=collection["name"],
+            vectors_config=models.VectorParams(
+                size=EMBED_DIM, distance=models.Distance.COSINE),
+        )
+
 
 def upsert_vector_with_payload(chunking_file_path: Path) -> None:
-    collection_type = chunking_file_path.name.split(
-        "_")[-1].split(".")[0]  # A o B
+    # Nome file da generate_chunks: md_{doc}_chunks-{A|B}.jsonl. Il taglio
+    # deve avvenire sull'ultimo "-", non su "_": {doc} può contenere "_"
+    # (es. versione "v5.0.3"), quindi split("_")[-1] non isola mai la sola
+    # lettera della strategia.
+    collection_type = chunking_file_path.stem.rsplit("-", 1)[-1]  # A o B
     collection_name = next(
         (c["name"]
          for c in COLLECTIONS if c["chunking_strategy"] == collection_type), None
