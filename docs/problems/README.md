@@ -7,6 +7,8 @@ volta.
 | #                                      | Problema                                                      | Dove                 | Stato   |
 | -------------------------------------- | ------------------------------------------------------------- | -------------------- | ------- |
 | [01](01-embedding-context-overflow.md) | `input length exceeds the context length` durante il chunking | `chunking_simple.py` | risolto |
+| [02](02-vector-size-mismatch.md) | Dimensione del vettore Qdrant (1536) diversa da quella di `embeddinggemma` (768) | `qdrant/ingestion.py` | risolto |
+| [03](03-generatore-troppo-piccolo.md) | Il generatore copia il contesto invece di rispondere — e l'ipotesi ovvia (contesto troncato) era falsa | `chat.py` | risolto |
 
 ## Problemi noti ancora aperti
 

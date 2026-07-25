@@ -51,7 +51,7 @@ BM25_B = 0.75
 # disponibile e' un LLM che assegna un punteggio leggendo query e documento
 # *insieme*. Stessa forma - nessun embedding indipendente, un solo passaggio
 # congiunto - costo molto piu' alto. Vedi cross_encoder_rerank().
-RERANK_MODEL = "llava-phi3:latest"
+RERANK_MODEL = "gemma4:cloud"
 
 TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 WS_RE = re.compile(r"\s+")

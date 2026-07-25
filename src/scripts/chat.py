@@ -31,7 +31,7 @@ from .retrieval import (COLLECTIONS, RRF_K, STRATEGIES, TOP_K, Hit,
 # reranker di retrieval.py): 3.8B parametri, fragile sull'italiano. E' la
 # costante da cambiare per prima - l'astensione, cioe' i blocchi A e X del
 # golden set, dipende quasi solo da qui.
-CHAT_MODEL = "llava-phi3:latest"
+CHAT_MODEL = "gemma4:cloud"
 
 # Collection B, il taglio sui titoli: tiene insieme intestazione e tabella, che
 # sulle domande T e' la differenza tra un contesto leggibile e tre numeri nudi.

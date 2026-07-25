@@ -14,6 +14,7 @@ from src.scripts.chunking_simple import generate_chunks_for_all_md
 from src.scripts.pdf2md import convert_all_pdfs
 from src.scripts.qdrant.ingestion import ingest_all_chunks
 from src.scripts.chat import chat_main
+from src.scripts.generation import evaluate_generation
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,6 +39,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Avvia la sessione di chat interattiva.",
     )
+    parser.add_argument(
+        "--evalgen",
+        action="store_true",
+        help="Valuta le risposte generate sul golden set.",
+    )
     return parser.parse_args()
 
 
@@ -55,6 +61,9 @@ def main() -> None:
 
     if args.chat:
         chat_main()
+
+    if args.evalgen:
+        evaluate_generation()
 
 
 if __name__ == "__main__":
