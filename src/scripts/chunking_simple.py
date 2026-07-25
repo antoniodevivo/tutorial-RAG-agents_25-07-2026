@@ -18,7 +18,7 @@ MD_DIR = BASE_DIR / "docs" / "md"
 CHUNK_DIR = BASE_DIR / "docs" / "chunks"
 
 MAX_TOKENS = 1200
-EMBED_MODEL = "qwen3-embedding"
+EMBED_MODEL = "embeddinggemma"
 
 # Marcatore di pagina inserito da pdf2md prima di ogni pagina convertita.
 PAGE_RE = re.compile(r"^<!--\s*pagina:\s*(\d+)\s*-->")
@@ -58,7 +58,8 @@ def build_chunk(text, metadata, section, page, ordinal, config) -> ChunkWithEmbe
     """Chiude un chunk: metadati, identità ed embedding."""
     metadata = metadata or {}
     return ChunkWithEmbedding(
-        chunk_id=chunk_uuid(metadata.get("document", ""), config, section, ordinal),
+        chunk_id=chunk_uuid(metadata.get("document", ""),
+                            config, section, ordinal),
         text=text,
         metadata=ChunkMetadata(
             document=metadata.get("document", ""),

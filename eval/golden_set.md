@@ -1,4 +1,4 @@
-# Golden set — 30 domande scritte a mano
+# Golden set — 32 domande scritte a mano
 
 Set di valutazione per il retrieval sul corpus in `docs/`. Ogni domanda ha la
 risposta attesa e **quale pezzo di corpus deve tornare**. Scritto a mano
@@ -14,7 +14,7 @@ leggendo i documenti: ogni numero qui dentro è stato verificato sul testo.
 | Documenti hash | 288 | Atti del Congresso USA, report DHS/DOE, moduli statali, paper, verbali. Inglese, scaricati alla rinfusa, senza relazione tra loro né con i CCNL. |
 | CV | 1 | `CV_Antonio_DeVivo_ITA_v5.0.3.md`, **48 byte**: il PDF non ha prodotto testo. |
 
-Le 30 domande sono ancorate ai **due CCNL**, l'unico dominio del corpus in cui
+Le 32 domande sono ancorate ai **due CCNL**, l'unico dominio del corpus in cui
 esista una risposta verificabile. Gli altri 288 documenti non sono esclusi dalla
 valutazione: restano nell'indice come rumore, ed è esattamente il loro compito.
 
@@ -268,7 +268,7 @@ domanda fuori tema, ed è il caso che si verifica in produzione.
 
 ## Come usarlo
 
-1. **Prima il retrieval, da solo.** Per ognuna delle 25 domande con chunk atteso: il chunk che contiene l'ancora è tra i primi `k`? Recall@k prima di guardare le risposte generate. Se il chunk giusto non arriva, il resto non è diagnosticabile.
+1. **Prima il retrieval, da solo.** Per ognuna delle 27 domande con chunk atteso: il chunk che contiene l'ancora è tra i primi `k`? Recall@k prima di guardare le risposte generate. Se il chunk giusto non arriva, il resto non è diagnosticabile.
 2. **Poi le risposte**, con i chunk giusti forzati nel contesto. Separa gli errori di retrieval da quelli di generazione.
 3. **Le 5 domande finali** (A1, A2, X1, X2, X3) si valutano solo sul comportamento: astensione = successo; risposta plausibile = fallimento, anche se il numero è corretto.
 4. **Non aggiustare le domande per farle passare.** Se una domanda fallisce sistematicamente, quella è la diagnosi: valore di `MAX_TOKENS`, assenza di overlap, tabelle spezzate, `section` inaffidabile, ranking che deduplica documenti gemelli.

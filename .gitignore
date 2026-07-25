@@ -1,6 +1,9 @@
 .venv
 
-docs
+docs/chunks
+docs/md
+docs/pdf
+
 
 __pycache__
 
