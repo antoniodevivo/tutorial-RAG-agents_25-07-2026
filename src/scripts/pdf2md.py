@@ -10,29 +10,74 @@ MD_DIR = BASE_DIR / "docs" / "md"
 PROBLEMS_DIR = MD_DIR / "problems"
 
 
+def convert_page_by_page(pdf_path: Path, errors: list[str]) -> str:
+    """Converte il PDF una pagina alla volta, saltando quelle che danno errore.
+
+    Usata come ripiego quando la conversione dell'intero documento fallisce:
+    permette di recuperare le pagine leggibili invece di perdere tutto il file.
+
+    Args:
+        pdf_path: percorso del PDF di input.
+        errors: lista a cui vengono aggiunti i messaggi di errore incontrati.
+
+    Returns:
+        Il Markdown delle sole pagine convertite correttamente.
+    """
+
+    try:
+        doc = pymupdf.open(pdf_path)
+    except Exception as e:
+        errors.append(f"Apertura del PDF fallita: {type(e).__name__}: {e}")
+        return ""
+
+    pages = []
+    total = doc.page_count
+    for i in range(total):
+        try:
+            pages.append(pymupdf4llm.to_markdown(doc, pages=[i], show_progress=False))
+        except Exception as e:
+            errors.append(f"Pagina {i + 1} saltata: {type(e).__name__}: {e}")
+    doc.close()
+
+    if total == 0:
+        errors.append("Il PDF non contiene pagine leggibili (file troncato o corrotto).")
+    else:
+        errors.append(f"Recuperate {len(pages)}/{total} pagine.")
+    return "".join(pages)
+
+
 def convert_pdf_to_markdown(pdf_path: Path, md_path: Path) -> bool:
     """Converte un singolo PDF in un file Markdown.
 
-    Gli eventuali problemi di parsing vengono salvati in
-    PROBLEMS_DIR/<nome_file>.md.
+    Se la conversione dell'intero documento fallisce, riprova pagina per pagina
+    e salva le pagine recuperate. Gli eventuali problemi di parsing vengono
+    salvati in PROBLEMS_DIR/<nome_file>.md.
 
     Args:
         pdf_path: percorso del PDF di input.
         md_path: percorso del file Markdown di output.
     """
 
-    errors = None
+    errors: list[str] = []
     pymupdf.TOOLS.reset_mupdf_warnings()
 
     try:
         md = pymupdf4llm.to_markdown(str(pdf_path))
-        md_path.write_text(md, encoding="utf-8")
     except Exception as e:
-        errors = f"{type(e).__name__}: {e}"
         print(f"Errore durante la conversione di {pdf_path.name}: {e}")
+        print("  Riprovo pagina per pagina...")
+        errors.append(f"Conversione dell'intero documento fallita: {type(e).__name__}: {e}")
+        md = convert_page_by_page(pdf_path, errors)
+
+    if md:
+        md_path.write_text(md, encoding="utf-8")
+    else:
+        errors.append("Nessun contenuto estratto: il file Markdown non è stato creato.")
 
     # mupdf_warnings() restituisce (e azzera) gli avvisi di parsing accumulati.
-    problems = "\n".join(filter(None, [pymupdf.TOOLS.mupdf_warnings(), errors])).strip()
+    # dict.fromkeys() elimina i doppioni mantenendo l'ordine.
+    rows = [*pymupdf.TOOLS.mupdf_warnings().splitlines(), *errors]
+    problems = "\n".join(dict.fromkeys(filter(None, rows))).strip()
     if problems:
         PROBLEMS_DIR.mkdir(parents=True, exist_ok=True)
         (PROBLEMS_DIR / f"{pdf_path.stem}.md").write_text(
@@ -41,7 +86,7 @@ def convert_pdf_to_markdown(pdf_path: Path, md_path: Path) -> bool:
         )
         print(f"  Problemi di parsing salvati in {PROBLEMS_DIR.name}/{pdf_path.stem}.md")
 
-    return errors is None
+    return bool(md)
 
 
 def convert_all_pdfs() -> None:
