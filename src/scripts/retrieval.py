@@ -56,6 +56,14 @@ RERANK_MODEL = "gemma4:cloud"
 TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 WS_RE = re.compile(r"\s+")
 
+# Punteggiatura tipografica del PDF ricondotta a quella che si scrive a
+# tastiera nel golden set. Vedi normalize().
+PUNCT_MAP = str.maketrans({
+    "’": "'", "‘": "'",    # apostrofi e virgolette singole
+    "“": '"', "”": '"',    # virgolette doppie
+    " ": " ",                   # spazio insecabile
+})
+
 
 @dataclass
 class Hit:
@@ -304,8 +312,18 @@ SearchFn = Callable[[str, str, int], list[Hit]]
 
 
 def normalize(text: str) -> str:
-    """Spazi compattati: la strategia A unisce le righe, la B le tiene."""
-    return WS_RE.sub(" ", text)
+    """Spazi compattati e apostrofi uniformati.
+
+    Gli spazi perche' la strategia A unisce le righe e la B le tiene: senza,
+    la stessa ancora matcherebbe su una collection e no sull'altra.
+
+    Gli apostrofi perche' il PDF usa quello tipografico (U+2019) e il golden
+    set e' scritto con quello dritto: "un'indennita'" non matcherebbe mai.
+    Accenti e maiuscole NON si toccano - "attivita'" e "attività" sono due
+    stringhe diverse anche per il retrieval, e un'ancora sbagliata deve
+    fallire, non essere perdonata dal confronto.
+    """
+    return WS_RE.sub(" ", text.translate(PUNCT_MAP))
 
 
 def load_golden() -> list[dict]:

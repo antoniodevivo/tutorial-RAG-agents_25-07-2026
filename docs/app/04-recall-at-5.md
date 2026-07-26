@@ -100,6 +100,14 @@ contesto sembri buono. È il caso che si verifica in produzione.
 
 ## Il risultato che abbiamo
 
+> **Nota sulle ancore.** Questi numeri precedono
+> [`golden_set.py`](../../src/scripts/golden_set.py), che rigenera il `.jsonl`
+> dal `.md`. Il `.jsonl` misurato allora aveva ancore troncate a mano — `|2S|`
+> invece di `|2S|€ 37,00|`, `1.886,50` invece della riga intera — e dieci
+> domande con il settore aggiunto rispetto al `.md`. Ancore più corte sono più
+> facili da contenere: il 55% qui sotto è in parte gonfiato, e non è
+> confrontabile con le misure fatte dopo la rigenerazione.
+
 L'unica misura completata finora è BM25 da solo, su 521 chunk della strategia B
 (le collection Qdrant non sono ancora popolate):
 
